@@ -39,6 +39,16 @@ function App() {
   const currentShapeIdRef = useRef<string>();
   const isPaintFirstSplineRef = useRef(true);
 
+  const onClear = useCallback(() => {
+    setRectangles([]);
+    setCircles([]);
+    setFreeLines([]);
+    setArrows([]);
+    setLines([]);
+    setSplines([]);
+    setPolygons([]);
+  }, []);
+
   const onStageMouseDown = useCallback(() => {
     if (drawAction === DrawAction.Select || !stageRef.current) return;
 
@@ -320,6 +330,7 @@ function App() {
         <Button onClick={() => setDrawAction("circle")}>원</Button>
         <Button onClick={() => setDrawAction("freeLine")}>그리기</Button>
         <Button onClick={() => setDrawAction("polygon")}>다각형</Button>
+        <Button onClick={onClear}>모두 지우기</Button>
       </div>
       <DrawBox size={SIZE}>
         <Stage
