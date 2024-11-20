@@ -18,7 +18,6 @@ export const Container = styled.div`
 export const Button = styled.button`
   background-color: #6200ea;
   color: white;
-  border: none;
   border-radius: 5px;
   padding: 10px 15px;
   margin: 0 10px;
@@ -32,6 +31,22 @@ export const Button = styled.button`
 
   &:active {
     background-color: #03dac6;
+  }
+`;
+
+export const DrawButton = styled.button<{ currentButton: boolean }>`
+  background-color: ${({ currentButton }) =>
+    currentButton ? "#ff7010" : "#9e642d"};
+  color: white;
+  border-radius: 5px;
+  padding: 10px 15px;
+  margin: 0 10px;
+  font-size: 16px;
+  cursor: pointer;
+  transition: background-color 0.3s;
+
+  &:hover {
+    background-color: #ff9a02;
   }
 `;
 

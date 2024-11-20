@@ -25,7 +25,7 @@ const StrokeWidthAdjuster = ({
         onChange={handleSliderChange}
       />
       <p>
-        Value: <span id="value">{strokeWidth}</span>
+        선 두께: <span id="value">{strokeWidth}</span>
       </p>
     </div>
   );
