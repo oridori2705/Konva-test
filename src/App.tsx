@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Arrow, Circle, Layer, Line, Rect, Stage } from "react-konva";
 import {
   LineType,
@@ -7,9 +7,13 @@ import {
   PolygonType,
   RectangleType,
   SplineType,
+  KonvaElement,
 } from "./types/PaintTypes";
 import { Button, Container, DrawBox } from "./style/Stage.Styled";
 import { v4 as uuid } from "uuid";
+import Konva from "konva";
+import DynamicKonvaRenderer from "./component/DynamicKonvaRenderer";
+
 const SIZE = 500;
 
 const DrawAction = {
@@ -33,8 +37,9 @@ function App() {
   const [polygons, setPolygons] = useState<PolygonType[]>([]);
   const [lines, setLines] = useState<LineType[]>([]);
   const [splines, setSplines] = useState<SplineType[]>([]);
+  const [shapes, setShapes] = useState<KonvaElement[]>([]);
 
-  const stageRef = useRef<any>(null);
+  const stageRef = useRef<Konva.Stage>(null);
   const isPaintRef = useRef(false);
   const currentShapeIdRef = useRef<string>();
   const isPaintFirstSplineRef = useRef(true);
@@ -47,6 +52,7 @@ function App() {
     setLines([]);
     setSplines([]);
     setPolygons([]);
+    setShapes([]);
   }, []);
 
   const onStageMouseDown = useCallback(() => {
@@ -56,8 +62,8 @@ function App() {
 
     const stage = stageRef.current;
     const pos = stage.getPointerPosition();
-    const x = (pos.x as number) || 0;
-    const y = (pos.y as number) || 0;
+    const x = (pos!.x as number) || 0;
+    const y = (pos!.y as number) || 0;
     const id = uuid();
 
     switch (drawAction) {
@@ -318,7 +324,20 @@ function App() {
 
     isPaintFirstSplineRef.current = !isPaintFirstSplineRef.current;
     isPaintRef.current = false;
+
+    const json = stageRef.current!.toJSON();
+    localStorage.setItem("konva", json);
   }, [drawAction, polygons]);
+
+  useEffect(() => {
+    const savedData = localStorage.getItem("konva");
+
+    if (savedData) {
+      const parsedData = JSON.parse(savedData);
+
+      setShapes(parsedData.children[0]?.children || []);
+    }
+  }, []);
 
   return (
     <Container>
@@ -334,6 +353,7 @@ function App() {
       </div>
       <DrawBox size={SIZE}>
         <Stage
+          id="MainStage"
           height={SIZE}
           width={SIZE}
           ref={stageRef}
@@ -342,6 +362,9 @@ function App() {
           onMouseMove={onStageMouseMove}
         >
           <Layer>
+            {shapes.map((element, index) => (
+              <DynamicKonvaRenderer key={index} data={element} />
+            ))}
             {arrows.map((arrow) => (
               <Arrow
                 key={arrow.id}

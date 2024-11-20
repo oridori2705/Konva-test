@@ -1,3 +1,5 @@
+import Konva from "konva";
+
 export type Shape = {
   id: string;
   color: string;
@@ -34,3 +36,17 @@ export type LineType = Shape & {
 export type SplineType = Shape & {
   points: number[];
 };
+
+export type KonvaElement =
+  | {
+      className: "Line";
+      attrs: Konva.LineConfig;
+    }
+  | {
+      className: "Rect";
+      attrs: Konva.RectConfig;
+    }
+  | {
+      className: "Circle";
+      attrs: Konva.CircleConfig;
+    };
