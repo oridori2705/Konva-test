@@ -14,6 +14,7 @@ import { v4 as uuid } from "uuid";
 import Konva from "konva";
 import DynamicKonvaRenderer from "./component/DynamicKonvaRenderer";
 import ColorPalette, { ColorCode } from "./component/ColorPalette";
+import StrokeWidthAdjuster from "./component/StrokeWidthAdjuster";
 
 const SIZE = 500;
 
@@ -29,6 +30,7 @@ const DrawAction = {
 };
 
 function App() {
+  const [strokeWidth, setStrokeWidth] = useState<number>(5);
   const [color, setColor] = useState<ColorCode>("#000");
   const [drawAction, setDrawAction] = useState(DrawAction.Select);
   const [arrows, setArrows] = useState<LineType[]>([]);
@@ -47,6 +49,10 @@ function App() {
 
   const handleColorChange = useCallback((color: ColorCode) => {
     setColor(color);
+  }, []);
+
+  const handleStrokeWidthChange = useCallback((width: number) => {
+    setStrokeWidth(width);
   }, []);
 
   const onClear = useCallback(() => {
@@ -74,19 +80,28 @@ function App() {
     switch (drawAction) {
       case DrawAction.Arrow: {
         currentShapeIdRef.current = id;
-        setArrows((prev) => [...prev, { id, color, points: [x, y, x, y] }]);
+        setArrows((prev) => [
+          ...prev,
+          { id, color, strokeWidth, points: [x, y, x, y] },
+        ]);
         break;
       }
       case DrawAction.Line: {
         currentShapeIdRef.current = id;
-        setLines((prev) => [...prev, { id, color, points: [x, y, x, y] }]);
+        setLines((prev) => [
+          ...prev,
+          { id, color, strokeWidth, points: [x, y, x, y] },
+        ]);
         break;
       }
       case DrawAction.Spline: {
         if (isPaintFirstSplineRef.current) {
           //첫 번째 클릭
           currentShapeIdRef.current = id;
-          setSplines((prev) => [...prev, { id, color, points: [x, y] }]);
+          setSplines((prev) => [
+            ...prev,
+            { id, color, strokeWidth, points: [x, y] },
+          ]);
         } else {
           // 두 번째 클릭
           setSplines((prev) => {
@@ -109,7 +124,7 @@ function App() {
         currentShapeIdRef.current = id;
         setRectangles((prev) => [
           ...prev,
-          { id, color, x, y, height: 1, width: 1 },
+          { id, color, strokeWidth, x, y, height: 1, width: 1 },
         ]);
         break;
       }
@@ -123,6 +138,7 @@ function App() {
             x,
             y,
             color,
+            strokeWidth,
           },
         ]);
         break;
@@ -135,6 +151,7 @@ function App() {
             id,
             points: [x, y],
             color,
+            strokeWidth,
           },
         ]);
         break;
@@ -164,7 +181,7 @@ function App() {
                   ...prev[prev.length - 1],
                   points: [...prev[prev.length - 1].points, x, y],
                 }
-              : { id, color, points: [x, y], closed: false };
+              : { id, color, strokeWidth, points: [x, y], closed: false };
 
           //폴리곤을 완성시키는 경우
           if (lastPolygon.points.length > 2) {
@@ -186,7 +203,7 @@ function App() {
         break;
       }
     }
-  }, [drawAction, color]);
+  }, [drawAction, color, strokeWidth]);
 
   const onStageMouseMove = useCallback(() => {
     if (drawAction === DrawAction.Select || !isPaintRef.current) return;
@@ -378,7 +395,7 @@ function App() {
                   points={arrow.points}
                   fill={arrow.color}
                   stroke={arrow.color}
-                  strokeWidth={4}
+                  strokeWidth={arrow.strokeWidth}
                 />
               ))}
               {lines.map((line) => (
@@ -389,7 +406,7 @@ function App() {
                   lineJoin="bevel"
                   stroke={line.color}
                   points={line.points}
-                  strokeWidth={4}
+                  strokeWidth={line.strokeWidth}
                 />
               ))}
               {splines.map((spline) => (
@@ -401,7 +418,7 @@ function App() {
                   stroke={spline.color}
                   points={spline.points}
                   tension={0.5}
-                  strokeWidth={4}
+                  strokeWidth={spline.strokeWidth}
                 />
               ))}
               {rectangles.map((rectangle) => (
@@ -413,7 +430,7 @@ function App() {
                   height={rectangle.height}
                   width={rectangle.width}
                   stroke={rectangle.color}
-                  strokeWidth={4}
+                  strokeWidth={rectangle.strokeWidth}
                 />
               ))}
               {circles.map((circle) => (
@@ -424,7 +441,7 @@ function App() {
                   y={circle.y}
                   radius={circle.radius}
                   stroke={circle.color}
-                  strokeWidth={4}
+                  strokeWidth={circle.strokeWidth}
                 />
               ))}
               {freeLines.map((freeLine) => (
@@ -435,7 +452,7 @@ function App() {
                   lineJoin="round"
                   stroke={freeLine.color}
                   points={freeLine.points}
-                  strokeWidth={4}
+                  strokeWidth={freeLine.strokeWidth}
                 />
               ))}
               {polygons.map((polygon) => (
@@ -445,13 +462,17 @@ function App() {
                   points={polygon.points}
                   stroke={polygon.color}
                   closed={polygon.closed}
-                  strokeWidth={4}
+                  strokeWidth={polygon.strokeWidth}
                 />
               ))}
             </Layer>
           </Stage>
         </DrawBox>
         <ColorPalette onColorChange={handleColorChange} />
+        <StrokeWidthAdjuster
+          strokeWidth={strokeWidth}
+          setStrokeWidth={handleStrokeWidthChange}
+        />
       </SubContainer>
     </Container>
   );
