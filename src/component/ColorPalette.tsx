@@ -1,7 +1,11 @@
 import { memo } from "react";
+import {
+  ColorPaletteButton,
+  ColorPaletteContainer,
+} from "../style/Stage.Styled";
 
 export type ColorCode =
-  | "#000"
+  | "#000000"
   | "#FF5733"
   | "#33FF57"
   | "#3357FF"
@@ -12,7 +16,7 @@ export type ColorCode =
   | "#3498DB";
 
 const colors: ColorCode[] = [
-  "#000",
+  "#000000",
   "#FF5733",
   "#33FF57",
   "#3357FF",
@@ -24,34 +28,30 @@ const colors: ColorCode[] = [
 ];
 
 interface ColorPaletteProps {
+  currentColor: string;
   onColorChange: (color: ColorCode) => void;
 }
 
-const ColorPalette = memo(({ onColorChange }: ColorPaletteProps) => {
-  const handleColorClick = (color: ColorCode) => {
-    onColorChange(color);
-  };
+const ColorPalette = memo(
+  ({ currentColor, onColorChange }: ColorPaletteProps) => {
+    const handleColorClick = (color: ColorCode) => {
+      onColorChange(color);
+    };
 
-  return (
-    <div style={{ display: "flex", flexDirection: "column" }}>
-      {colors.map((color) => (
-        <button
-          key={color}
-          onClick={() => handleColorClick(color)}
-          style={{
-            backgroundColor: color,
-            color: "#fff",
-            border: "none",
-            padding: "10px",
-            margin: "5px 0",
-            cursor: "pointer",
-            borderRadius: "5px",
-          }}
-        ></button>
-      ))}
-    </div>
-  );
-});
+    return (
+      <ColorPaletteContainer>
+        {colors.map((color) => (
+          <ColorPaletteButton
+            key={color}
+            onClick={() => handleColorClick(color)}
+            color={color}
+            currentColor={currentColor === color}
+          />
+        ))}
+      </ColorPaletteContainer>
+    );
+  }
+);
 
 ColorPalette.displayName = "ColorPaletteComponent";
 

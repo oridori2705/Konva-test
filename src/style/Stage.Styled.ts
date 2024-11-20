@@ -37,5 +37,27 @@ export const Button = styled.button`
 
 export const SubContainer = styled.div`
   display: flex;
-  flex-direction: row;
+  gap: 10px;
+`;
+
+export const ColorPaletteContainer = styled.div`
+  display: flex;
+  flex-direction: column;
+`;
+
+export const ColorPaletteButton = styled.button<{
+  color: string;
+  currentColor: boolean;
+}>`
+  background-color: ${({ color }) => color};
+  width: 40px;
+  height: 40px;
+  color: "#fff";
+  border: ${({ currentColor }) => (currentColor ? `5px solid ` : "none")};
+  padding: 10px;
+  margin: 5px 0;
+  cursor: pointer;
+  border-radius: 5px;
+  scale: ${({ currentColor }) => (currentColor ? `1` : "0.6")};
+  transition: scale 0.2s ease;
 `;
