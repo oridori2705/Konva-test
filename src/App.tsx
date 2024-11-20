@@ -9,6 +9,7 @@ import {
   SplineType,
 } from "./types/PaintTypes";
 import { Button, Container, DrawBox } from "./style/Stage.Styled";
+import { v4 as uuid } from "uuid";
 const SIZE = 500;
 
 const DrawAction = {
@@ -25,84 +26,141 @@ const DrawAction = {
 function App() {
   const [color, setColor] = useState("#000");
   const [drawAction, setDrawAction] = useState(DrawAction.Select);
-  const [arrow, setArrow] = useState<LineType>();
-  const [rectangle, setRectangle] = useState<RectangleType>();
-  const [circle, setCircle] = useState<CircleType>();
-  const [freeLine, setFreeLine] = useState<FreeLineType>();
-  const [polygon, setPolygon] = useState<PolygonType>();
-  const [line, setLine] = useState<LineType>();
-  const [spline, setSpline] = useState<SplineType>();
+  const [arrows, setArrows] = useState<LineType[]>([]);
+  const [rectangles, setRectangles] = useState<RectangleType[]>([]);
+  const [circles, setCircles] = useState<CircleType[]>([]);
+  const [freeLines, setFreeLines] = useState<FreeLineType[]>([]);
+  const [polygons, setPolygons] = useState<PolygonType[]>([]);
+  const [lines, setLines] = useState<LineType[]>([]);
+  const [splines, setSplines] = useState<SplineType[]>([]);
 
   const stageRef = useRef<any>(null);
   const isPaintRef = useRef(false);
+  const currentShapeIdRef = useRef<string>();
+  const isPaintFirstSplineRef = useRef(true);
 
   const onStageMouseDown = useCallback(() => {
-    if (drawAction === DrawAction.Select) return;
+    if (drawAction === DrawAction.Select || !stageRef.current) return;
 
     isPaintRef.current = true;
 
-    const stage = stageRef?.current;
-
-    const pos = stage?.getPointerPosition();
-    const x = pos?.x || 0;
-    const y = pos?.y || 0;
+    const stage = stageRef.current;
+    const pos = stage.getPointerPosition();
+    const x = (pos.x as number) || 0;
+    const y = (pos.y as number) || 0;
+    const id = uuid();
 
     switch (drawAction) {
       case DrawAction.Arrow: {
-        setArrow({ id: "1", color, points: [x, y, x, y] });
+        currentShapeIdRef.current = id;
+        setArrows((prev) => [...prev, { id, color, points: [x, y, x, y] }]);
         break;
       }
       case DrawAction.Line: {
-        setLine({ id: "2", color, points: [x, y, x, y] });
+        currentShapeIdRef.current = id;
+        setLines((prev) => [...prev, { id, color, points: [x, y, x, y] }]);
         break;
       }
       case DrawAction.Spline: {
-        setSpline((prev) => {
-          const initPoints: number[] = [x, y];
-          const prevInit = prev ? prev : { id: "3", color, points: initPoints };
-          if (
-            prevInit.points.length === 6 &&
-            prevInit.points[0] === prevInit.points[2] &&
-            prevInit.points[1] === prevInit.points[3]
-          ) {
-            const [x1, y1, , , x3, y3] = prevInit.points;
-            return { ...prevInit, points: [x1, y1, x, y, x3, y3] };
-          }
-          return prevInit;
-        });
+        if (isPaintFirstSplineRef.current) {
+          //첫 번째 클릭
+          currentShapeIdRef.current = id;
+          setSplines((prev) => [...prev, { id, color, points: [x, y] }]);
+        } else {
+          // 두 번째 클릭
+          setSplines((prev) => {
+            const lastSpline = prev[prev.length - 1];
+            const [x1, y1, , , x3, y3] = lastSpline.points;
+
+            return prev.map((spline) =>
+              spline.id === lastSpline.id
+                ? {
+                    ...spline,
+                    points: [x1, y1, x, y, x3, y3],
+                  }
+                : spline
+            );
+          });
+        }
         break;
       }
       case DrawAction.Rectangle: {
-        setRectangle({ id: "4", color, x, y, height: 1, width: 1 });
+        currentShapeIdRef.current = id;
+        setRectangles((prev) => [
+          ...prev,
+          { id, color, x, y, height: 1, width: 1 },
+        ]);
         break;
       }
       case DrawAction.Circle: {
-        setCircle({ id: "5", color, x, y, radius: 1 });
+        currentShapeIdRef.current = id;
+        setCircles((prev) => [
+          ...prev,
+          {
+            id,
+            radius: 1,
+            x,
+            y,
+            color,
+          },
+        ]);
         break;
       }
       case DrawAction.freeLine: {
-        setFreeLine({ id: "6", color, points: [x, y] });
+        currentShapeIdRef.current = id;
+        setFreeLines((prev) => [
+          ...prev,
+          {
+            id,
+            points: [x, y],
+            color,
+          },
+        ]);
         break;
       }
       case DrawAction.Polygon: {
-        setPolygon((prev) => {
-          const newPoints: number[] = [...(prev?.points || []), x, y];
-          const prevInit = prev ? prev : { id: "7", color, points: newPoints };
+        currentShapeIdRef.current = id;
 
-          if (newPoints.length > 2) {
-            const firstX = newPoints[0];
-            const firstY = newPoints[1];
+        const updatePolygonList = (
+          polygons: PolygonType[],
+          updatedPolygon: PolygonType
+        ) => {
+          return polygons.length === 0
+            ? [updatedPolygon]
+            : [
+                ...polygons.filter(
+                  (polygon) => polygon.id !== updatedPolygon.id
+                ),
+                updatedPolygon,
+              ];
+        };
+
+        setPolygons((prev) => {
+          //현재 진행 중인 폴리곤
+          const lastPolygon =
+            prev.length > 0 && !prev[prev.length - 1].closed
+              ? {
+                  ...prev[prev.length - 1],
+                  points: [...prev[prev.length - 1].points, x, y],
+                }
+              : { id, color, points: [x, y], closed: false };
+
+          //폴리곤을 완성시키는 경우
+          if (lastPolygon.points.length > 2) {
+            const firstX = lastPolygon.points[0];
+            const firstY = lastPolygon.points[1];
             const dist = Math.sqrt((x - firstX) ** 2 + (y - firstY) ** 2);
-
-            if (dist < 5) {
-              return {
-                ...prevInit,
-                points: newPoints,
+            if (dist < 10) {
+              const completedPolygon = {
+                ...lastPolygon,
+                points: lastPolygon.points.slice(0, -2),
                 closed: true,
               };
+              return updatePolygonList(prev, completedPolygon);
             }
           }
-          return { id: "7", color, points: newPoints };
+          // 폴리곤이 진행 중인 경우
+          return updatePolygonList(prev, lastPolygon);
         });
         break;
       }
@@ -114,108 +172,143 @@ function App() {
 
     const stage = stageRef?.current;
     const pos = stage?.getPointerPosition();
-    const x = pos?.x || 0;
-    const y = pos?.y || 0;
+    const x = (pos?.x as number) || 0;
+    const y = (pos?.y as number) || 0;
+
+    const currentId = currentShapeIdRef.current;
 
     switch (drawAction) {
       case DrawAction.Arrow: {
-        setArrow((prev) => {
-          const prevInit = prev
-            ? prev
-            : { id: "1", color, points: [x, y, x, y] };
-          return {
-            ...prevInit,
-            points: [prevInit.points[0] || 0, prevInit.points[1] || 0, x, y],
-          };
-        });
+        setArrows((prevArrows) =>
+          prevArrows.map((arrow) =>
+            arrow.id === currentId
+              ? {
+                  ...arrow,
+                  points: [arrow.points[0], arrow.points[1], x, y],
+                }
+              : arrow
+          )
+        );
         break;
       }
       case DrawAction.Line: {
-        setLine((prev) => {
-          const prevInit = prev
-            ? prev
-            : { id: "2", color, points: [x, y, x, y] };
-          return {
-            ...prevInit,
-            points: [prevInit.points[0], prevInit.points[1], x, y],
-          };
-        });
+        setLines((prevLines) =>
+          prevLines.map((line) =>
+            line.id === currentId
+              ? {
+                  ...line,
+                  points: [line.points[0], line.points[1], x, y],
+                }
+              : line
+          )
+        );
         break;
       }
       case DrawAction.Spline: {
-        setSpline((prev) => {
-          if (!prev) return prev;
-          if (
-            prev.points.length === 6 &&
-            prev.points[0] !== prev.points[2] &&
-            prev.points[1] !== prev.points[3]
-          ) {
-            const [x1, y1, , , x3, y3] = prev.points;
-            return { ...prev, points: [x1, y1, x, y, x3, y3] };
-          } else if (prev.points.length <= 6) {
-            const [x1, y1] = prev.points;
-            return { ...prev, points: [x1, y1, x1, y1, x, y] };
+        const updateSpline = (spline: SplineType) => {
+          // 첫 번째 Move(끝점을 정하는 미리보기)
+          if (isPaintFirstSplineRef.current) {
+            const [x1, y1] = spline.points;
+            return [x1, y1, x1, y1, x, y];
+          } else {
+            //두 번째 Move(기울기 정하는 미리보기)
+            const [x1, y1, , , x3, y3] = spline.points;
+            return [x1, y1, x, y, x3, y3];
           }
+        };
+        setSplines((prev) => {
+          return prev.map((spline) =>
+            spline.id === currentId
+              ? {
+                  ...spline,
+                  points: updateSpline(spline),
+                }
+              : spline
+          );
         });
         break;
       }
       case DrawAction.Rectangle: {
-        setRectangle((prev) => {
-          const prevInit = prev
-            ? prev
-            : { id: "4", color, x: 0, y: 0, height: 1, width: 1 };
-          return {
-            ...prevInit,
-            height: y - prevInit.y,
-            width: x - prevInit.x,
-          };
-        });
+        setRectangles((prev) =>
+          prev?.map((rectangle) =>
+            rectangle.id === currentId
+              ? {
+                  ...rectangle,
+                  height: y - rectangle.y,
+                  width: x - rectangle.x,
+                }
+              : rectangle
+          )
+        );
         break;
       }
       case DrawAction.Circle: {
-        setCircle((prev) => {
-          const prevInit = prev
-            ? prev
-            : { id: "5", color, x: 0, y: 0, radius: 1 };
-          return {
-            ...prevInit,
-            radius: ((x - prevInit.x) ** 2 + (y - prevInit.y) ** 2) ** 0.5,
-          };
-        });
+        setCircles((prev) =>
+          prev?.map((circle) =>
+            circle.id === currentId
+              ? {
+                  ...circle,
+                  radius: ((x - circle.x) ** 2 + (y - circle.y) ** 2) ** 0.5,
+                }
+              : circle
+          )
+        );
         break;
       }
       case DrawAction.freeLine: {
-        setFreeLine((prev) => {
-          const prevInit = prev ? prev : { id: "6", color, points: [x, y] };
-          return {
-            ...prevInit,
-            points: [...prevInit.points, x, y],
-          };
-        });
+        setFreeLines((prev) =>
+          prev.map((freeLine) =>
+            freeLine.id === currentId
+              ? {
+                  ...freeLine,
+                  points: [...freeLine.points, x, y],
+                }
+              : freeLine
+          )
+        );
         break;
       }
       case DrawAction.Polygon: {
-        setPolygon((prev) => {
-          const newPoints: number[] = [...(prev?.points || []), x, y];
-          const prevInit = prev ? prev : { id: "7", color, points: newPoints };
-          if (prevInit.points.length <= 2)
-            return {
-              ...prevInit,
-              points: [prevInit.points[0], prevInit.points[1], x, y],
-            };
+        setPolygons((prev) => {
+          if (prev.length === 0) return prev;
 
-          const currentPoints = [...prevInit.points.slice(0, -2), x, y];
-          return { ...prevInit, points: currentPoints };
+          const lastPolygon = prev[prev.length - 1];
+
+          if (lastPolygon.points.length <= 2) {
+            return prev.map((polygon) =>
+              polygon.id === lastPolygon.id
+                ? {
+                    ...polygon,
+                    points: [polygon.points[0], lastPolygon.points[1], x, y],
+                  }
+                : polygon
+            );
+          }
+
+          return prev.map((polygon) =>
+            polygon.id === lastPolygon.id
+              ? {
+                  ...polygon,
+                  points: [...polygon.points.slice(0, -2), x, y],
+                }
+              : polygon
+          );
         });
         break;
       }
     }
-  }, [drawAction, color]);
+  }, [drawAction]);
 
   const onStageMouseUp = useCallback(() => {
-    if (drawAction === DrawAction.Polygon && !polygon?.closed) return;
+    if (
+      drawAction === DrawAction.Polygon &&
+      !polygons[polygons.length - 1].closed
+    )
+      return;
+
+    isPaintFirstSplineRef.current = !isPaintFirstSplineRef.current;
     isPaintRef.current = false;
-  }, [drawAction, polygon]);
+  }, [drawAction, polygons]);
 
   return (
     <Container>
@@ -238,7 +331,7 @@ function App() {
           onMouseMove={onStageMouseMove}
         >
           <Layer>
-            {arrow && (
+            {arrows.map((arrow) => (
               <Arrow
                 key={arrow.id}
                 id={arrow.id}
@@ -247,8 +340,8 @@ function App() {
                 stroke={arrow.color}
                 strokeWidth={4}
               />
-            )}
-            {line && (
+            ))}
+            {lines.map((line) => (
               <Line
                 key={line.id}
                 id={line.id}
@@ -258,8 +351,8 @@ function App() {
                 points={line.points}
                 strokeWidth={4}
               />
-            )}
-            {spline && (
+            ))}
+            {splines.map((spline) => (
               <Line
                 key={spline.id}
                 id={spline.id}
@@ -270,8 +363,8 @@ function App() {
                 tension={0.5}
                 strokeWidth={4}
               />
-            )}
-            {rectangle && (
+            ))}
+            {rectangles.map((rectangle) => (
               <Rect
                 key={rectangle.id}
                 id={rectangle.id}
@@ -282,8 +375,8 @@ function App() {
                 stroke={rectangle.color}
                 strokeWidth={4}
               />
-            )}
-            {circle && (
+            ))}
+            {circles.map((circle) => (
               <Circle
                 key={circle.id}
                 id={circle.id}
@@ -293,8 +386,8 @@ function App() {
                 stroke={circle.color}
                 strokeWidth={4}
               />
-            )}
-            {freeLine && (
+            ))}
+            {freeLines.map((freeLine) => (
               <Line
                 key={freeLine.id}
                 id={freeLine.id}
@@ -304,8 +397,8 @@ function App() {
                 points={freeLine.points}
                 strokeWidth={4}
               />
-            )}
-            {polygon && (
+            ))}
+            {polygons.map((polygon) => (
               <Line
                 key={polygon.id}
                 id={polygon.id}
@@ -314,7 +407,7 @@ function App() {
                 closed={polygon.closed}
                 strokeWidth={4}
               />
-            )}
+            ))}
           </Layer>
         </Stage>
       </DrawBox>
