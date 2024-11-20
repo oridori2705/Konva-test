@@ -34,3 +34,8 @@ export const Button = styled.button`
     background-color: #03dac6;
   }
 `;
+
+export const SubContainer = styled.div`
+  display: flex;
+  flex-direction: row;
+`;

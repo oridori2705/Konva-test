@@ -9,10 +9,11 @@ import {
   SplineType,
   KonvaElement,
 } from "./types/PaintTypes";
-import { Button, Container, DrawBox } from "./style/Stage.Styled";
+import { Button, Container, DrawBox, SubContainer } from "./style/Stage.Styled";
 import { v4 as uuid } from "uuid";
 import Konva from "konva";
 import DynamicKonvaRenderer from "./component/DynamicKonvaRenderer";
+import ColorPalette, { ColorCode } from "./component/ColorPalette";
 
 const SIZE = 500;
 
@@ -28,7 +29,7 @@ const DrawAction = {
 };
 
 function App() {
-  const [color, setColor] = useState("#000");
+  const [color, setColor] = useState<ColorCode>("#000");
   const [drawAction, setDrawAction] = useState(DrawAction.Select);
   const [arrows, setArrows] = useState<LineType[]>([]);
   const [rectangles, setRectangles] = useState<RectangleType[]>([]);
@@ -43,6 +44,10 @@ function App() {
   const isPaintRef = useRef(false);
   const currentShapeIdRef = useRef<string>();
   const isPaintFirstSplineRef = useRef(true);
+
+  const handleColorChange = useCallback((color: ColorCode) => {
+    setColor(color);
+  }, []);
 
   const onClear = useCallback(() => {
     setRectangles([]);
@@ -351,100 +356,103 @@ function App() {
         <Button onClick={() => setDrawAction("polygon")}>다각형</Button>
         <Button onClick={onClear}>모두 지우기</Button>
       </div>
-      <DrawBox size={SIZE}>
-        <Stage
-          id="MainStage"
-          height={SIZE}
-          width={SIZE}
-          ref={stageRef}
-          onMouseUp={onStageMouseUp}
-          onMouseDown={onStageMouseDown}
-          onMouseMove={onStageMouseMove}
-        >
-          <Layer>
-            {shapes.map((element, index) => (
-              <DynamicKonvaRenderer key={index} data={element} />
-            ))}
-            {arrows.map((arrow) => (
-              <Arrow
-                key={arrow.id}
-                id={arrow.id}
-                points={arrow.points}
-                fill={arrow.color}
-                stroke={arrow.color}
-                strokeWidth={4}
-              />
-            ))}
-            {lines.map((line) => (
-              <Line
-                key={line.id}
-                id={line.id}
-                lineCap="square"
-                lineJoin="bevel"
-                stroke={line.color}
-                points={line.points}
-                strokeWidth={4}
-              />
-            ))}
-            {splines.map((spline) => (
-              <Line
-                key={spline.id}
-                id={spline.id}
-                lineCap="round"
-                lineJoin="round"
-                stroke={spline.color}
-                points={spline.points}
-                tension={0.5}
-                strokeWidth={4}
-              />
-            ))}
-            {rectangles.map((rectangle) => (
-              <Rect
-                key={rectangle.id}
-                id={rectangle.id}
-                x={rectangle.x}
-                y={rectangle.y}
-                height={rectangle.height}
-                width={rectangle.width}
-                stroke={rectangle.color}
-                strokeWidth={4}
-              />
-            ))}
-            {circles.map((circle) => (
-              <Circle
-                key={circle.id}
-                id={circle.id}
-                x={circle.x}
-                y={circle.y}
-                radius={circle.radius}
-                stroke={circle.color}
-                strokeWidth={4}
-              />
-            ))}
-            {freeLines.map((freeLine) => (
-              <Line
-                key={freeLine.id}
-                id={freeLine.id}
-                lineCap="round"
-                lineJoin="round"
-                stroke={freeLine.color}
-                points={freeLine.points}
-                strokeWidth={4}
-              />
-            ))}
-            {polygons.map((polygon) => (
-              <Line
-                key={polygon.id}
-                id={polygon.id}
-                points={polygon.points}
-                stroke={polygon.color}
-                closed={polygon.closed}
-                strokeWidth={4}
-              />
-            ))}
-          </Layer>
-        </Stage>
-      </DrawBox>
+      <SubContainer>
+        <DrawBox size={SIZE}>
+          <Stage
+            id="MainStage"
+            height={SIZE}
+            width={SIZE}
+            ref={stageRef}
+            onMouseUp={onStageMouseUp}
+            onMouseDown={onStageMouseDown}
+            onMouseMove={onStageMouseMove}
+          >
+            <Layer>
+              {shapes.map((element, index) => (
+                <DynamicKonvaRenderer key={index} data={element} />
+              ))}
+              {arrows.map((arrow) => (
+                <Arrow
+                  key={arrow.id}
+                  id={arrow.id}
+                  points={arrow.points}
+                  fill={arrow.color}
+                  stroke={arrow.color}
+                  strokeWidth={4}
+                />
+              ))}
+              {lines.map((line) => (
+                <Line
+                  key={line.id}
+                  id={line.id}
+                  lineCap="square"
+                  lineJoin="bevel"
+                  stroke={line.color}
+                  points={line.points}
+                  strokeWidth={4}
+                />
+              ))}
+              {splines.map((spline) => (
+                <Line
+                  key={spline.id}
+                  id={spline.id}
+                  lineCap="round"
+                  lineJoin="round"
+                  stroke={spline.color}
+                  points={spline.points}
+                  tension={0.5}
+                  strokeWidth={4}
+                />
+              ))}
+              {rectangles.map((rectangle) => (
+                <Rect
+                  key={rectangle.id}
+                  id={rectangle.id}
+                  x={rectangle.x}
+                  y={rectangle.y}
+                  height={rectangle.height}
+                  width={rectangle.width}
+                  stroke={rectangle.color}
+                  strokeWidth={4}
+                />
+              ))}
+              {circles.map((circle) => (
+                <Circle
+                  key={circle.id}
+                  id={circle.id}
+                  x={circle.x}
+                  y={circle.y}
+                  radius={circle.radius}
+                  stroke={circle.color}
+                  strokeWidth={4}
+                />
+              ))}
+              {freeLines.map((freeLine) => (
+                <Line
+                  key={freeLine.id}
+                  id={freeLine.id}
+                  lineCap="round"
+                  lineJoin="round"
+                  stroke={freeLine.color}
+                  points={freeLine.points}
+                  strokeWidth={4}
+                />
+              ))}
+              {polygons.map((polygon) => (
+                <Line
+                  key={polygon.id}
+                  id={polygon.id}
+                  points={polygon.points}
+                  stroke={polygon.color}
+                  closed={polygon.closed}
+                  strokeWidth={4}
+                />
+              ))}
+            </Layer>
+          </Stage>
+        </DrawBox>
+        <ColorPalette onColorChange={handleColorChange} />
+      </SubContainer>
     </Container>
   );
 }
