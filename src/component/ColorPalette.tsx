@@ -31,7 +31,7 @@ const ColorPalette = memo(({ onColorChange }: ColorPaletteProps) => {
   const handleColorClick = (color: ColorCode) => {
     onColorChange(color);
   };
-  console.log("adsasddsa");
+
   return (
     <div style={{ display: "flex", flexDirection: "column" }}>
       {colors.map((color) => (

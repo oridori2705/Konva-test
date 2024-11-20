@@ -44,7 +44,7 @@ function App() {
 
   const stageRef = useRef<Konva.Stage>(null);
   const isPaintRef = useRef(false);
-  const currentShapeIdRef = useRef<string>();
+  const currentShapeIdRef = useRef<string | null>(null);
   const isPaintFirstSplineRef = useRef(true);
 
   const handleColorChange = useCallback((color: ColorCode) => {
@@ -56,6 +56,9 @@ function App() {
   }, []);
 
   const onClear = useCallback(() => {
+    isPaintRef.current = false;
+    currentShapeIdRef.current = null;
+    isPaintFirstSplineRef.current = true;
     setRectangles([]);
     setCircles([]);
     setFreeLines([]);
@@ -105,6 +108,7 @@ function App() {
         } else {
           // 두 번째 클릭
           setSplines((prev) => {
+            if (!prev) return prev;
             const lastSpline = prev[prev.length - 1];
             const [x1, y1, , , x3, y3] = lastSpline.points;
 
@@ -346,6 +350,7 @@ function App() {
 
     isPaintFirstSplineRef.current = !isPaintFirstSplineRef.current;
     isPaintRef.current = false;
+    addDrawing();
 
     const json = stageRef.current!.toJSON();
     localStorage.setItem("konva", json);
@@ -360,7 +365,6 @@ function App() {
       setShapes(parsedData.children[0]?.children || []);
     }
   }, []);
-
   return (
     <Container>
       <div>
