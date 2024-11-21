@@ -479,42 +479,31 @@ function App() {
       const parsedData = JSON.parse(json);
       const newData: KonvaElement[] = parsedData.children[0].children;
       setHistory((prev) => {
-        //만약 redo할 데이터가 있는 상태인데 그리기를 시도했을 때 redo할 데이터들 제거
-        if (historyStep.current <= prev.length) {
-          const slicePrev = prev.slice(0, historyStep.current - 1);
-          const updatedData = newData.filter(
-            (newItem) =>
-              !slicePrev.some((his) => his.attrs.id === newItem.attrs.id)
+        //redo할 데이터가 있는 상태인지
+        const isRedoing = historyStep.current <= prev.length;
+        const slicePrev = isRedoing
+          ? prev.slice(0, historyStep.current - 1)
+          : prev;
+
+        const updatedData = newData.filter(
+          (newItem) =>
+            !slicePrev.some((his) => his.attrs.id === newItem.attrs.id)
+        );
+
+        const resultData = slicePrev
+          .concat(updatedData)
+          .sort(
+            (a: KonvaElement, b: KonvaElement) =>
+              a.attrs.timeStamp - b.attrs.timeStamp
           );
-          const resultData = slicePrev
-            .concat(updatedData)
-            .sort(
-              (a: KonvaElement, b: KonvaElement) =>
-                a.attrs.timeStamp - b.attrs.timeStamp
-            );
-          // 기록 개수가 MAX_HISTORY_LENGTH를 초과하면 앞에서 제거
-          if (resultData.length > MAX_HISTORY_LENGTH) {
-            historyStep.current = MAX_HISTORY_LENGTH;
-            return resultData.slice(-MAX_HISTORY_LENGTH);
-          }
-          return resultData;
-        } else {
-          const updatedData = newData.filter(
-            (newItem) => !prev.some((his) => his.attrs.id === newItem.attrs.id)
-          );
-          const resultData = prev
-            .concat(updatedData)
-            .sort(
-              (a: KonvaElement, b: KonvaElement) =>
-                a.attrs.timeStamp - b.attrs.timeStamp
-            );
-          // 기록 개수가 MAX_HISTORY_LENGTH를 초과하면 앞에서 제거
-          if (resultData.length > MAX_HISTORY_LENGTH) {
-            historyStep.current = MAX_HISTORY_LENGTH;
-            return resultData.slice(-MAX_HISTORY_LENGTH);
-          }
-          return resultData;
+
+        // 기록 개수가 MAX_HISTORY_LENGTH를 초과하면 앞에서 제거
+        if (resultData.length > MAX_HISTORY_LENGTH) {
+          historyStep.current = MAX_HISTORY_LENGTH;
+          return resultData.slice(-MAX_HISTORY_LENGTH);
         }
+
+        return resultData;
       });
       historyStep.current += 1;
       localStorage.setItem("konva", json);
