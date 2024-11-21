@@ -30,20 +30,69 @@ const DrawAction = {
   Spline: "spline",
 };
 
+const getInitialShapes = (savedData: string | null, shapeName: string) => {
+  if (savedData) {
+    const parsedData = JSON.parse(savedData);
+    const data = parsedData.children[0]?.children || [];
+
+    return data
+      .filter((shape: KonvaElement) => shape.attrs.name === shapeName)
+      .map((shape: KonvaElement) => ({
+        ...shape.attrs,
+        id: shape.attrs.id,
+        color: shape.attrs.stroke,
+        points: shape.attrs.points,
+        strokeWidth: shape.attrs.strokeWidth,
+        timeStamp: shape.attrs.timeStamp,
+      }));
+  }
+  return [];
+};
+
 function App() {
+  const savedData = localStorage.getItem("konva");
   const [strokeWidth, setStrokeWidth] = useState<number>(5);
   const [color, setColor] = useState<ColorCode>("#000000");
   const [drawAction, setDrawAction] = useState(DrawAction.Select);
-  const [arrows, setArrows] = useState<LineType[]>([]);
-  const [rectangles, setRectangles] = useState<RectConfig[]>([]);
-  const [circles, setCircles] = useState<CircleConfig[]>([]);
-  const [freeLines, setFreeLines] = useState<FreeLineType[]>([]);
-  const [polygons, setPolygons] = useState<PolygonType[]>([]);
-  const [lines, setLines] = useState<LineType[]>([]);
-  const [splines, setSplines] = useState<SplineType[]>([]);
+  const [arrows, setArrows] = useState<LineType[]>(() =>
+    getInitialShapes(savedData, "arrow")
+  );
+  const [rectangles, setRectangles] = useState<RectConfig[]>(() =>
+    getInitialShapes(savedData, "rectangle")
+  );
+  const [circles, setCircles] = useState<CircleConfig[]>(() =>
+    getInitialShapes(savedData, "circle")
+  );
+  const [freeLines, setFreeLines] = useState<FreeLineType[]>(() =>
+    getInitialShapes(savedData, "freedraw")
+  );
+  const [polygons, setPolygons] = useState<PolygonType[]>(() =>
+    getInitialShapes(savedData, "polygon")
+  );
+  const [lines, setLines] = useState<LineType[]>(() =>
+    getInitialShapes(savedData, "line")
+  );
+  const [splines, setSplines] = useState<SplineType[]>(() =>
+    getInitialShapes(savedData, "spline")
+  );
 
-  const [history, setHistory] = useState<KonvaElement[]>([]);
   const historyStep = useRef<number>(0);
+  const [history, setHistory] = useState<KonvaElement[]>(() => {
+    if (savedData) {
+      const parsedData = JSON.parse(savedData);
+      const data = parsedData.children[0]?.children || [];
+      historyStep.current =
+        data.length > MAX_HISTORY_LENGTH ? MAX_HISTORY_LENGTH : data.length;
+      const sortedShapes = data.sort(
+        (a: KonvaElement, b: KonvaElement) =>
+          a.attrs.timeStamp - b.attrs.timeStamp
+      );
+      return sortedShapes.slice(-MAX_HISTORY_LENGTH);
+    }
+    return [];
+  });
+  console.log(history);
+  console.log(historyStep.current);
 
   const stageRef = useRef<Konva.Stage>(null);
   const isPaintRef = useRef(false);
@@ -95,30 +144,23 @@ function App() {
     const { attrs } = state;
     const { id, name, stroke, points } = attrs;
 
-    //StritMode로 인한 두 번 저장하는 문제
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const addIfNotExists = (prev: any, newItem: any) =>
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      prev.some((item: any) => item.id === newItem.id)
-        ? prev
-        : [...prev, newItem];
-
-    const newData = { ...attrs, points, id, color: stroke };
-
     if (name === "arrow") {
-      setArrows((prev) => addIfNotExists(prev, newData));
+      setArrows((prev) => [...prev, { ...attrs, points, color: stroke }]);
     } else if (name === "rectangle") {
-      setRectangles((prev) => addIfNotExists(prev, newData));
+      setRectangles((prev) => [...prev, { ...attrs, color: stroke }]);
     } else if (name === "circle") {
-      setCircles((prev) => addIfNotExists(prev, newData));
+      setCircles((prev) => [...prev, { ...attrs, points, id, color: stroke }]);
     } else if (name === "freedraw") {
-      setFreeLines((prev) => addIfNotExists(prev, newData));
+      setFreeLines((prev) => [
+        ...prev,
+        { ...attrs, points, id, color: stroke },
+      ]);
     } else if (name === "polygon") {
-      setPolygons((prev) => addIfNotExists(prev, newData));
+      setPolygons((prev) => [...prev, { ...attrs, points, id, color: stroke }]);
     } else if (name === "line") {
-      setLines((prev) => addIfNotExists(prev, newData));
+      setLines((prev) => [...prev, { ...attrs, points, id, color: stroke }]);
     } else if (name === "spline") {
-      setSplines((prev) => addIfNotExists(prev, newData));
+      setSplines((prev) => [...prev, { ...attrs, points, id, color: stroke }]);
     }
   };
 
@@ -501,32 +543,11 @@ function App() {
       handleSplineAction();
       return;
     }
+
+    if (!isPaintRef.current) return;
     isPaintRef.current = false;
     saveHistoryAndLocalStorage();
   }, [drawAction, polygons]);
-
-  //새로고침시 LocalStorage에 접근해서 저장된 데이터 가져오는 이펙트
-  useEffect(() => {
-    const savedData = localStorage.getItem("konva");
-    if (savedData) {
-      const parsedData = JSON.parse(savedData);
-      const data = parsedData.children[0]?.children || [];
-
-      historyStep.current =
-        data.length > MAX_HISTORY_LENGTH ? MAX_HISTORY_LENGTH : data.length;
-
-      //Date순으로 정렬
-      const sortedShapes = data.sort(
-        (a: KonvaElement, b: KonvaElement) =>
-          a.attrs.timeStamp - b.attrs.timeStamp
-      );
-      sortedShapes.forEach((data: KonvaElement) => {
-        redoRestoreState(data);
-      });
-
-      setHistory(sortedShapes.slice(-MAX_HISTORY_LENGTH) || []);
-    }
-  }, []);
 
   return (
     <Container>
