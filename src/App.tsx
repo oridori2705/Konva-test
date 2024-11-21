@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { Arrow, Circle, Layer, Line, Rect, Stage } from "react-konva";
 import {
   LineType,
