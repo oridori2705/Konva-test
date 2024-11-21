@@ -91,8 +91,6 @@ function App() {
     }
     return [];
   });
-  console.log(history);
-  console.log(historyStep.current);
 
   const stageRef = useRef<Konva.Stage>(null);
   const isPaintRef = useRef(false);
