@@ -23,14 +23,14 @@
 
 ### main브랜치에서 수행했습니다.. 따로 PR 활용하지못한 점 죄송합니다. 해당 README에 해결과정 작성했습니다.
 
-### 🔗(배포URL)[https://konva-test-seven.vercel.app/]
+### 🔗[배포URL](https://konva-test-seven.vercel.app/)
 
 # ✨1. 드로잉 타입 선택 기능 구현
 
 ## 🛠️1. 화살표, 직선, 곡선, 원, 직사각형, 다각형, 그리기 기능 구현
 - onStageMouseDown, onStageMouseMove,onStageMouseUp을 이용해 드로잉 기능들을 구현했습니다.
 - isPaintRef를 이용해 현재 드로잉 중인지 판별하고, 이를 활용했습니다.
-- `원`과 `다각형 자동 closed`에서 (거리공식)[https://whatpull-dev.tistory.com/40]을 이용했습니다.
+- `원`과 `다각형 자동 closed`에서 [거리공식](https://whatpull-dev.tistory.com/40)을 이용했습니다.
 - `곡선`은 `MouseDown -> MouseMove -> MouseUp` 단계에서 시작점과 도착점을 설정하고, 이후 두 번째 `MouseDown -> MouseMove -> MouseUp` 단계에서 기울기를 설정합니다.
 - `다각형`은 아래와 같은 과정으로 진행됩니다.
     - MouseDown시 
@@ -57,7 +57,7 @@
 ```
 ## 🛠️3. 새로 고침 이후에도 캔버스 내용이 유지되어야 합니다.
 - `localStorage`를 활용했습니다.
-- 저장 시에는 stage에 접근해 (해당 데이터를 json으로 변환)[https://konvajs.org/docs/data_and_serialization/Serialize_a_Stage.html]하고, 이를 localStorage에 저장했습니다.
+- 저장 시에는 stage에 접근해 [해당 데이터를 json으로 변환](https://konvajs.org/docs/data_and_serialization/Serialize_a_Stage.html)하고, 이를 localStorage에 저장했습니다.
 - 로드 시에는 localStorage에서 json 값을 가져오고, 해당 데이터에서 각 드로일 데이터를 저장한 부분을 추출해 모든 드로잉 State에 저장해서 출력했습니다.
 ```
 //stage 접근
