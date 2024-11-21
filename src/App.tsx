@@ -152,59 +152,6 @@ function App() {
     localStorage.removeItem("konva");
   }, []);
 
-  //히스토리 저장 및 로드
-  const saveAndLoadData = useCallback(() => {
-    const json = stageRef.current!.toJSON();
-    const parsedData = JSON.parse(json);
-    const newData: KonvaElement[] = parsedData.children[0].children;
-
-    setHistory((prev) => {
-      //만약 redo할 데이터가 있는 상태인데 그리기를 시도했을 때 redo할 데이터들 제거
-      if (historyStep.current <= prev.length) {
-        const slicePrev = prev.slice(0, historyStep.current - 1);
-        const updatedData = newData.filter(
-          (newItem) =>
-            !slicePrev.some((his) => his.attrs.id === newItem.attrs.id)
-        );
-        const resultData = slicePrev
-          .concat(updatedData)
-          .sort(
-            (a: KonvaElement, b: KonvaElement) =>
-              a.attrs.timeStamp - b.attrs.timeStamp
-          );
-
-        // 기록 개수가 MAX_HISTORY_LENGTH를 초과하면 앞에서 제거
-        if (resultData.length > MAX_HISTORY_LENGTH) {
-          historyStep.current = MAX_HISTORY_LENGTH;
-
-          return resultData.slice(-MAX_HISTORY_LENGTH);
-        }
-        return resultData;
-      } else {
-        const updatedData = newData.filter(
-          (newItem) => !prev.some((his) => his.attrs.id === newItem.attrs.id)
-        );
-
-        const resultData = prev
-          .concat(updatedData)
-          .sort(
-            (a: KonvaElement, b: KonvaElement) =>
-              a.attrs.timeStamp - b.attrs.timeStamp
-          );
-
-        // 기록 개수가 MAX_HISTORY_LENGTH를 초과하면 앞에서 제거
-        if (resultData.length > MAX_HISTORY_LENGTH) {
-          historyStep.current = MAX_HISTORY_LENGTH;
-          return resultData.slice(-MAX_HISTORY_LENGTH);
-        }
-        return resultData;
-      }
-    });
-
-    historyStep.current += 1;
-    localStorage.setItem("konva", json);
-  }, []);
-
   //MouseDown
   const onStageMouseDown = useCallback(() => {
     if (drawAction === DrawAction.Select || !stageRef.current) return;
@@ -487,20 +434,62 @@ function App() {
 
   //MouseUp
   const onStageMouseUp = useCallback(() => {
-    //현재 곡선일 경우
+    const saveHistoryAndLocalStorage = () => {
+      const json = stageRef.current!.toJSON();
+      const parsedData = JSON.parse(json);
+      const newData: KonvaElement[] = parsedData.children[0].children;
+      setHistory((prev) => {
+        //만약 redo할 데이터가 있는 상태인데 그리기를 시도했을 때 redo할 데이터들 제거
+        if (historyStep.current <= prev.length) {
+          const slicePrev = prev.slice(0, historyStep.current - 1);
+          const updatedData = newData.filter(
+            (newItem) =>
+              !slicePrev.some((his) => his.attrs.id === newItem.attrs.id)
+          );
+          const resultData = slicePrev
+            .concat(updatedData)
+            .sort(
+              (a: KonvaElement, b: KonvaElement) =>
+                a.attrs.timeStamp - b.attrs.timeStamp
+            );
+          // 기록 개수가 MAX_HISTORY_LENGTH를 초과하면 앞에서 제거
+          if (resultData.length > MAX_HISTORY_LENGTH) {
+            historyStep.current = MAX_HISTORY_LENGTH;
+            return resultData.slice(-MAX_HISTORY_LENGTH);
+          }
+          return resultData;
+        } else {
+          const updatedData = newData.filter(
+            (newItem) => !prev.some((his) => his.attrs.id === newItem.attrs.id)
+          );
+          const resultData = prev
+            .concat(updatedData)
+            .sort(
+              (a: KonvaElement, b: KonvaElement) =>
+                a.attrs.timeStamp - b.attrs.timeStamp
+            );
+          // 기록 개수가 MAX_HISTORY_LENGTH를 초과하면 앞에서 제거
+          if (resultData.length > MAX_HISTORY_LENGTH) {
+            historyStep.current = MAX_HISTORY_LENGTH;
+            return resultData.slice(-MAX_HISTORY_LENGTH);
+          }
+          return resultData;
+        }
+      });
+      historyStep.current += 1;
+      localStorage.setItem("konva", json);
+    };
     const handleSplineAction = () => {
-      //아직 첫 번째 드로잉일 경우
       if (!isPaintFirstSplineRef.current) {
         isPaintRef.current = false;
         isPaintFirstSplineRef.current = true;
-        saveAndLoadData();
+        saveHistoryAndLocalStorage();
         return;
       }
       isPaintRef.current = false;
       isPaintFirstSplineRef.current = false;
     };
 
-    //현재 폴리곤 드로잉이 끝나지 않은 경우
     const isPolygonDrawingUnfinished = () =>
       drawAction === DrawAction.Polygon &&
       !polygons[polygons.length - 1]?.closed;
@@ -512,10 +501,9 @@ function App() {
       handleSplineAction();
       return;
     }
-
     isPaintRef.current = false;
-    saveAndLoadData();
-  }, [drawAction, polygons, saveAndLoadData]);
+    saveHistoryAndLocalStorage();
+  }, [drawAction, polygons]);
 
   //새로고침시 LocalStorage에 접근해서 저장된 데이터 가져오는 이펙트
   useEffect(() => {
@@ -539,8 +527,7 @@ function App() {
       setHistory(sortedShapes.slice(-MAX_HISTORY_LENGTH) || []);
     }
   }, []);
-  console.log(history);
-  console.log(historyStep.current);
+
   return (
     <Container>
       <div>
