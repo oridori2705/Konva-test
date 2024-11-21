@@ -288,7 +288,7 @@ function App() {
             if (dist < 10) {
               const completedPolygon = {
                 ...lastPolygon,
-                points: lastPolygon.points.slice(0, -2),
+                points: lastPolygon.points,
                 closed: true,
               };
               return updatePolygonList(prev, completedPolygon);
@@ -407,14 +407,14 @@ function App() {
       case DrawAction.Polygon: {
         setPolygons((prev) => {
           if (prev.length === 0) return prev;
-
           const lastPolygon = prev[prev.length - 1];
+
+          if (lastPolygon.closed) return prev;
 
           return prev.map((polygon) => {
             if (polygon.id !== lastPolygon.id) {
               return polygon;
             }
-
             // 현재 폴리곤인 경우, 조건에 따라 points를 수정
             const newPoints =
               lastPolygon.points.length <= 2
