@@ -7,8 +7,6 @@ interface DrawAction {
 }
 
 interface DrawActionPaletteProps {
-  undo: () => void;
-  redo: () => void;
   onClear: () => void;
   currentAction: string;
   setDrawAction: (action: string) => void;
@@ -25,17 +23,9 @@ const drawActions: DrawAction[] = [
 ];
 
 const DrawActionPalette = memo(
-  ({
-    undo,
-    redo,
-    onClear,
-    setDrawAction,
-    currentAction,
-  }: DrawActionPaletteProps) => {
+  ({ onClear, setDrawAction, currentAction }: DrawActionPaletteProps) => {
     return (
-      <div>
-        <Button onClick={undo}>Undo</Button>
-        <Button onClick={redo}>Redo</Button>
+      <>
         {drawActions.map(({ label, action }) => (
           <DrawButton
             currentButton={action === currentAction}
@@ -46,7 +36,7 @@ const DrawActionPalette = memo(
           </DrawButton>
         ))}
         <Button onClick={onClear}>모두 지우기</Button>
-      </div>
+      </>
     );
   }
 );

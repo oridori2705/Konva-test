@@ -32,6 +32,9 @@ export const Button = styled.button`
   &:active {
     background-color: #03dac6;
   }
+  &:disabled {
+    background-color: gray;
+  }
 `;
 
 export const DrawButton = styled.button<{ currentButton: boolean }>`

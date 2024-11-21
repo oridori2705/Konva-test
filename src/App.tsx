@@ -2,21 +2,22 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Arrow, Circle, Layer, Line, Rect, Stage } from "react-konva";
 import {
   LineType,
-  CircleType,
   FreeLineType,
   PolygonType,
-  RectangleType,
   SplineType,
   KonvaElement,
 } from "./types/PaintTypes";
 import { Button, Container, DrawBox, SubContainer } from "./style/Stage.Styled";
 import { v4 as uuid } from "uuid";
 import Konva from "konva";
-import DynamicKonvaRenderer from "./component/DynamicKonvaRenderer";
 import ColorPalette, { ColorCode } from "./component/ColorPalette";
 import StrokeWidthAdjuster from "./component/StrokeWidthAdjuster";
+import DrawActionPalette from "./component/DrawActionPalette";
+import { RectConfig } from "konva/lib/shapes/Rect";
+import { CircleConfig } from "konva/lib/shapes/Circle";
 
 const SIZE = 500;
+const MAX_HISTORY_LENGTH = 10;
 
 const DrawAction = {
   Select: "select",
@@ -31,21 +32,96 @@ const DrawAction = {
 
 function App() {
   const [strokeWidth, setStrokeWidth] = useState<number>(5);
-  const [color, setColor] = useState<ColorCode>("#000");
+  const [color, setColor] = useState<ColorCode>("#000000");
   const [drawAction, setDrawAction] = useState(DrawAction.Select);
   const [arrows, setArrows] = useState<LineType[]>([]);
-  const [rectangles, setRectangles] = useState<RectangleType[]>([]);
-  const [circles, setCircles] = useState<CircleType[]>([]);
+  const [rectangles, setRectangles] = useState<RectConfig[]>([]);
+  const [circles, setCircles] = useState<CircleConfig[]>([]);
   const [freeLines, setFreeLines] = useState<FreeLineType[]>([]);
   const [polygons, setPolygons] = useState<PolygonType[]>([]);
   const [lines, setLines] = useState<LineType[]>([]);
   const [splines, setSplines] = useState<SplineType[]>([]);
-  const [shapes, setShapes] = useState<KonvaElement[]>([]);
+
+  const [history, setHistory] = useState<KonvaElement[]>([]);
+  const historyStep = useRef<number>(0);
+
+  const isFirstStep = () => historyStep.current === 0;
+  const isLastStep = () => history.length === historyStep.current;
 
   const stageRef = useRef<Konva.Stage>(null);
   const isPaintRef = useRef(false);
   const currentShapeIdRef = useRef<string | null>(null);
   const isPaintFirstSplineRef = useRef(true);
+
+  const handleDrawAction = useCallback((action: string) => {
+    setDrawAction(action);
+  }, []);
+
+  const undo = () => {
+    if (isFirstStep()) {
+      return;
+    }
+    historyStep.current -= 1;
+    const previous = history[historyStep.current];
+    undoRestoreState(previous);
+  };
+
+  const redo = () => {
+    if (isLastStep()) {
+      return;
+    }
+    const next = history[historyStep.current];
+    historyStep.current += 1;
+    redoRestoreState(next);
+  };
+
+  const undoRestoreState = (state: KonvaElement) => {
+    const { attrs } = state;
+    const { id, name } = attrs;
+
+    if (name === "arrow") {
+      setArrows((prev) => prev.filter((d) => d.id !== id));
+    } else if (name === "rectangle") {
+      setRectangles((prev) => prev.filter((d) => d.id !== id));
+    } else if (name === "circle") {
+      setCircles((prev) => prev.filter((d) => d.id !== id));
+    } else if (name === "freedraw") {
+      setFreeLines((prev) => prev.filter((d) => d.id !== id));
+    } else if (name === "polygon") {
+      setPolygons((prev) => prev.filter((d) => d.id !== id));
+    } else if (name === "line") {
+      setLines((prev) => prev.filter((d) => d.id !== id));
+    } else if (name === "spline") {
+      setSplines((prev) => prev.filter((d) => d.id !== id));
+    }
+  };
+
+  const redoRestoreState = (state: KonvaElement) => {
+    const { attrs } = state;
+    const { id, name, stroke, points } = attrs;
+
+    //StritMode로 인한 두 번 저장하는 문제
+    const addIfNotExists = (prev: any, newItem: any) =>
+      prev.some((item) => item.id === newItem.id) ? prev : [...prev, newItem];
+
+    const newData = { ...attrs, points, id, color: stroke };
+
+    if (name === "arrow") {
+      setArrows((prev) => addIfNotExists(prev, newData));
+    } else if (name === "rectangle") {
+      setRectangles((prev) => addIfNotExists(prev, newData));
+    } else if (name === "circle") {
+      setCircles((prev) => addIfNotExists(prev, newData));
+    } else if (name === "freedraw") {
+      setFreeLines((prev) => addIfNotExists(prev, newData));
+    } else if (name === "polygon") {
+      setPolygons((prev) => addIfNotExists(prev, newData));
+    } else if (name === "line") {
+      setLines((prev) => addIfNotExists(prev, newData));
+    } else if (name === "spline") {
+      setSplines((prev) => addIfNotExists(prev, newData));
+    }
+  };
 
   const handleColorChange = useCallback((color: ColorCode) => {
     setColor(color);
@@ -56,6 +132,7 @@ function App() {
   }, []);
 
   const onClear = useCallback(() => {
+    if (!confirm("기록된 히스토리까지 모두 지워집니다.")) return;
     isPaintRef.current = false;
     currentShapeIdRef.current = null;
     isPaintFirstSplineRef.current = true;
@@ -66,7 +143,9 @@ function App() {
     setLines([]);
     setSplines([]);
     setPolygons([]);
-    setShapes([]);
+    setHistory([]);
+    historyStep.current = 0;
+    localStorage.removeItem("konva");
   }, []);
 
   const onStageMouseDown = useCallback(() => {
@@ -79,13 +158,14 @@ function App() {
     const x = (pos!.x as number) || 0;
     const y = (pos!.y as number) || 0;
     const id = uuid();
+    const timeStamp = Date.now();
 
     switch (drawAction) {
       case DrawAction.Arrow: {
         currentShapeIdRef.current = id;
         setArrows((prev) => [
           ...prev,
-          { id, color, strokeWidth, points: [x, y, x, y] },
+          { id, color, strokeWidth, timeStamp, points: [x, y, x, y] },
         ]);
         break;
       }
@@ -93,7 +173,7 @@ function App() {
         currentShapeIdRef.current = id;
         setLines((prev) => [
           ...prev,
-          { id, color, strokeWidth, points: [x, y, x, y] },
+          { id, color, strokeWidth, timeStamp, points: [x, y, x, y] },
         ]);
         break;
       }
@@ -103,12 +183,11 @@ function App() {
           currentShapeIdRef.current = id;
           setSplines((prev) => [
             ...prev,
-            { id, color, strokeWidth, points: [x, y] },
+            { id, color, strokeWidth, timeStamp, points: [x, y] },
           ]);
         } else {
           // 두 번째 클릭
           setSplines((prev) => {
-            if (!prev) return prev;
             const lastSpline = prev[prev.length - 1];
             const [x1, y1, , , x3, y3] = lastSpline.points;
 
@@ -128,7 +207,7 @@ function App() {
         currentShapeIdRef.current = id;
         setRectangles((prev) => [
           ...prev,
-          { id, color, strokeWidth, x, y, height: 1, width: 1 },
+          { id, color, strokeWidth, timeStamp, x, y, height: 1, width: 1 },
         ]);
         break;
       }
@@ -143,6 +222,7 @@ function App() {
             y,
             color,
             strokeWidth,
+            timeStamp,
           },
         ]);
         break;
@@ -156,6 +236,7 @@ function App() {
             points: [x, y],
             color,
             strokeWidth,
+            timeStamp,
           },
         ]);
         break;
@@ -185,7 +266,14 @@ function App() {
                   ...prev[prev.length - 1],
                   points: [...prev[prev.length - 1].points, x, y],
                 }
-              : { id, color, strokeWidth, points: [x, y], closed: false };
+              : {
+                  id,
+                  color,
+                  strokeWidth,
+                  timeStamp,
+                  points: [x, y],
+                  closed: false,
+                };
 
           //폴리곤을 완성시키는 경우
           if (lastPolygon.points.length > 2) {
@@ -276,8 +364,8 @@ function App() {
             rectangle.id === currentId
               ? {
                   ...rectangle,
-                  height: y - rectangle.y,
-                  width: x - rectangle.x,
+                  height: y - rectangle.y!,
+                  width: x - rectangle.x!,
                 }
               : rectangle
           )
@@ -290,7 +378,7 @@ function App() {
             circle.id === currentId
               ? {
                   ...circle,
-                  radius: ((x - circle.x) ** 2 + (y - circle.y) ** 2) ** 0.5,
+                  radius: ((x - circle.x!) ** 2 + (y - circle.y!) ** 2) ** 0.5,
                 }
               : circle
           )
@@ -342,40 +430,121 @@ function App() {
   }, [drawAction]);
 
   const onStageMouseUp = useCallback(() => {
-    if (
+    const saveAndLoadData = () => {
+      const json = stageRef.current!.toJSON();
+      const parsedData = JSON.parse(json);
+      const newData: KonvaElement[] = parsedData.children[0].children;
+
+      setHistory((prev) => {
+        //만약 redo할 데이터가 있는 상태인데 그리기를 시도했을 때 redo할 데이터들 제거
+        if (historyStep.current <= prev.length) {
+          const slicePrev = prev.slice(0, historyStep.current - 1);
+          const updatedData = newData.filter(
+            (newItem) =>
+              !slicePrev.some((his) => his.attrs.id === newItem.attrs.id)
+          );
+          const resultData = slicePrev
+            .concat(updatedData)
+            .sort(
+              (a: KonvaElement, b: KonvaElement) =>
+                a.attrs.timeStamp - b.attrs.timeStamp
+            );
+
+          // 기록 개수가 MAX_HISTORY_LENGTH를 초과하면 앞에서 제거
+          if (resultData.length > MAX_HISTORY_LENGTH) {
+            historyStep.current = MAX_HISTORY_LENGTH;
+
+            return resultData.slice(-MAX_HISTORY_LENGTH);
+          }
+          return resultData;
+        } else {
+          const updatedData = newData.filter(
+            (newItem) => !prev.some((his) => his.attrs.id === newItem.attrs.id)
+          );
+
+          const resultData = prev
+            .concat(updatedData)
+            .sort(
+              (a: KonvaElement, b: KonvaElement) =>
+                a.attrs.timeStamp - b.attrs.timeStamp
+            );
+
+          // 기록 개수가 MAX_HISTORY_LENGTH를 초과하면 앞에서 제거
+          if (resultData.length > MAX_HISTORY_LENGTH) {
+            historyStep.current = MAX_HISTORY_LENGTH;
+            return resultData.slice(-MAX_HISTORY_LENGTH);
+          }
+          return resultData;
+        }
+      });
+
+      historyStep.current += 1;
+      localStorage.setItem("konva", json);
+    };
+    const handleSplineAction = () => {
+      if (!isPaintFirstSplineRef.current) {
+        isPaintRef.current = false;
+        isPaintFirstSplineRef.current = true;
+        saveAndLoadData();
+        return;
+      }
+      isPaintRef.current = false;
+      isPaintFirstSplineRef.current = false;
+    };
+
+    const isPolygonDrawingUnfinished = () =>
       drawAction === DrawAction.Polygon &&
-      !polygons[polygons.length - 1].closed
-    )
+      !polygons[polygons.length - 1]?.closed;
+
+    if (isPolygonDrawingUnfinished() || drawAction === DrawAction.Select)
       return;
 
-    isPaintFirstSplineRef.current = !isPaintFirstSplineRef.current;
+    if (drawAction === DrawAction.Spline) {
+      handleSplineAction();
+      return;
+    }
     isPaintRef.current = false;
-    addDrawing();
-
-    const json = stageRef.current!.toJSON();
-    localStorage.setItem("konva", json);
+    saveAndLoadData();
   }, [drawAction, polygons]);
 
   useEffect(() => {
     const savedData = localStorage.getItem("konva");
-
     if (savedData) {
       const parsedData = JSON.parse(savedData);
+      const data = parsedData.children[0]?.children || [];
 
-      setShapes(parsedData.children[0]?.children || []);
+      historyStep.current =
+        data.length > MAX_HISTORY_LENGTH ? MAX_HISTORY_LENGTH : data.length;
+
+      const sortedShapes = data.sort(
+        (a: KonvaElement, b: KonvaElement) =>
+          a.attrs.timeStamp - b.attrs.timeStamp
+      );
+      sortedShapes.forEach((data: KonvaElement) => {
+        redoRestoreState(data);
+      });
+
+      setHistory(sortedShapes.slice(-MAX_HISTORY_LENGTH) || []);
     }
   }, []);
+
   return (
     <Container>
       <div>
-        <Button onClick={() => setDrawAction("arrow")}>화살표</Button>
-        <Button onClick={() => setDrawAction("line")}>직선</Button>
-        <Button onClick={() => setDrawAction("spline")}>곡선</Button>
-        <Button onClick={() => setDrawAction("rectangle")}>직사각형</Button>
-        <Button onClick={() => setDrawAction("circle")}>원</Button>
-        <Button onClick={() => setDrawAction("freeLine")}>그리기</Button>
-        <Button onClick={() => setDrawAction("polygon")}>다각형</Button>
-        <Button onClick={onClear}>모두 지우기</Button>
+        <Button onClick={undo} disabled={historyStep.current === 0}>
+          Undo
+        </Button>
+        <Button
+          onClick={redo}
+          disabled={history.length === historyStep.current}
+        >
+          Redo
+        </Button>
+        <DrawActionPalette
+          onClear={onClear}
+          currentAction={drawAction}
+          setDrawAction={handleDrawAction}
+        />
       </div>
       <SubContainer>
         <DrawBox size={SIZE}>
@@ -389,21 +558,21 @@ function App() {
             onMouseMove={onStageMouseMove}
           >
             <Layer>
-              {shapes.map((element, index) => (
-                <DynamicKonvaRenderer key={index} data={element} />
-              ))}
               {arrows.map((arrow) => (
                 <Arrow
+                  name="arrow"
                   key={arrow.id}
                   id={arrow.id}
                   points={arrow.points}
                   fill={arrow.color}
                   stroke={arrow.color}
                   strokeWidth={arrow.strokeWidth}
+                  timeStamp={arrow.timeStamp}
                 />
               ))}
               {lines.map((line) => (
                 <Line
+                  name="line"
                   key={line.id}
                   id={line.id}
                   lineCap="square"
@@ -411,10 +580,12 @@ function App() {
                   stroke={line.color}
                   points={line.points}
                   strokeWidth={line.strokeWidth}
+                  timeStamp={line.timeStamp}
                 />
               ))}
               {splines.map((spline) => (
                 <Line
+                  name="spline"
                   key={spline.id}
                   id={spline.id}
                   lineCap="round"
@@ -423,10 +594,12 @@ function App() {
                   points={spline.points}
                   tension={0.5}
                   strokeWidth={spline.strokeWidth}
+                  timeStamp={spline.timeStamp}
                 />
               ))}
               {rectangles.map((rectangle) => (
                 <Rect
+                  name="rectangle"
                   key={rectangle.id}
                   id={rectangle.id}
                   x={rectangle.x}
@@ -435,10 +608,12 @@ function App() {
                   width={rectangle.width}
                   stroke={rectangle.color}
                   strokeWidth={rectangle.strokeWidth}
+                  timeStamp={rectangle.timeStamp}
                 />
               ))}
               {circles.map((circle) => (
                 <Circle
+                  name="circle"
                   key={circle.id}
                   id={circle.id}
                   x={circle.x}
@@ -446,10 +621,12 @@ function App() {
                   radius={circle.radius}
                   stroke={circle.color}
                   strokeWidth={circle.strokeWidth}
+                  timeStamp={circle.timeStamp}
                 />
               ))}
               {freeLines.map((freeLine) => (
                 <Line
+                  name="freedraw"
                   key={freeLine.id}
                   id={freeLine.id}
                   lineCap="round"
@@ -457,22 +634,25 @@ function App() {
                   stroke={freeLine.color}
                   points={freeLine.points}
                   strokeWidth={freeLine.strokeWidth}
+                  timeStamp={freeLine.timeStamp}
                 />
               ))}
               {polygons.map((polygon) => (
                 <Line
+                  name="polygon"
                   key={polygon.id}
                   id={polygon.id}
                   points={polygon.points}
                   stroke={polygon.color}
                   closed={polygon.closed}
                   strokeWidth={polygon.strokeWidth}
+                  timeStamp={polygon.timeStamp}
                 />
               ))}
             </Layer>
           </Stage>
         </DrawBox>
-        <ColorPalette onColorChange={handleColorChange} />
+        <ColorPalette currentColor={color} onColorChange={handleColorChange} />
         <StrokeWidthAdjuster
           strokeWidth={strokeWidth}
           setStrokeWidth={handleStrokeWidthChange}
