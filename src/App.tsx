@@ -556,6 +556,7 @@ function App() {
             onMouseUp={onStageMouseUp}
             onMouseDown={onStageMouseDown}
             onMouseMove={onStageMouseMove}
+            onMouseLeave={onStageMouseUp}
           >
             <Layer>
               {arrows.map((arrow) => (
