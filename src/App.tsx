@@ -17,7 +17,7 @@ import { RectConfig } from "konva/lib/shapes/Rect";
 import { CircleConfig } from "konva/lib/shapes/Circle";
 
 const SIZE = 500;
-const MAX_HISTORY_LENGTH = 10;
+const MAX_HISTORY_LENGTH = 40;
 
 const DrawAction = {
   Select: "select",
@@ -45,20 +45,13 @@ function App() {
   const [history, setHistory] = useState<KonvaElement[]>([]);
   const historyStep = useRef<number>(0);
 
-  const isFirstStep = () => historyStep.current === 0;
-  const isLastStep = () => history.length === historyStep.current;
-
   const stageRef = useRef<Konva.Stage>(null);
   const isPaintRef = useRef(false);
   const currentShapeIdRef = useRef<string | null>(null);
   const isPaintFirstSplineRef = useRef(true);
 
-  const handleDrawAction = useCallback((action: string) => {
-    setDrawAction(action);
-  }, []);
-
   const undo = () => {
-    if (isFirstStep()) {
+    if (historyStep.current === 0) {
       return;
     }
     historyStep.current -= 1;
@@ -67,7 +60,7 @@ function App() {
   };
 
   const redo = () => {
-    if (isLastStep()) {
+    if (history.length === historyStep.current) {
       return;
     }
     const next = history[historyStep.current];
@@ -75,6 +68,7 @@ function App() {
     redoRestoreState(next);
   };
 
+  //undo시 해당되는 데이터 업데이트
   const undoRestoreState = (state: KonvaElement) => {
     const { attrs } = state;
     const { id, name } = attrs;
@@ -96,13 +90,18 @@ function App() {
     }
   };
 
+  //redo시 해당되는 데이터 업데이트
   const redoRestoreState = (state: KonvaElement) => {
     const { attrs } = state;
     const { id, name, stroke, points } = attrs;
 
     //StritMode로 인한 두 번 저장하는 문제
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const addIfNotExists = (prev: any, newItem: any) =>
-      prev.some((item) => item.id === newItem.id) ? prev : [...prev, newItem];
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      prev.some((item: any) => item.id === newItem.id)
+        ? prev
+        : [...prev, newItem];
 
     const newData = { ...attrs, points, id, color: stroke };
 
@@ -131,6 +130,11 @@ function App() {
     setStrokeWidth(width);
   }, []);
 
+  const handleDrawAction = useCallback((action: string) => {
+    setDrawAction(action);
+  }, []);
+
+  //모두 지우기 기능
   const onClear = useCallback(() => {
     if (!confirm("기록된 히스토리까지 모두 지워집니다.")) return;
     isPaintRef.current = false;
@@ -148,6 +152,60 @@ function App() {
     localStorage.removeItem("konva");
   }, []);
 
+  //히스토리 저장 및 로드
+  const saveAndLoadData = useCallback(() => {
+    const json = stageRef.current!.toJSON();
+    const parsedData = JSON.parse(json);
+    const newData: KonvaElement[] = parsedData.children[0].children;
+
+    setHistory((prev) => {
+      //만약 redo할 데이터가 있는 상태인데 그리기를 시도했을 때 redo할 데이터들 제거
+      if (historyStep.current <= prev.length) {
+        const slicePrev = prev.slice(0, historyStep.current - 1);
+        const updatedData = newData.filter(
+          (newItem) =>
+            !slicePrev.some((his) => his.attrs.id === newItem.attrs.id)
+        );
+        const resultData = slicePrev
+          .concat(updatedData)
+          .sort(
+            (a: KonvaElement, b: KonvaElement) =>
+              a.attrs.timeStamp - b.attrs.timeStamp
+          );
+
+        // 기록 개수가 MAX_HISTORY_LENGTH를 초과하면 앞에서 제거
+        if (resultData.length > MAX_HISTORY_LENGTH) {
+          historyStep.current = MAX_HISTORY_LENGTH;
+
+          return resultData.slice(-MAX_HISTORY_LENGTH);
+        }
+        return resultData;
+      } else {
+        const updatedData = newData.filter(
+          (newItem) => !prev.some((his) => his.attrs.id === newItem.attrs.id)
+        );
+
+        const resultData = prev
+          .concat(updatedData)
+          .sort(
+            (a: KonvaElement, b: KonvaElement) =>
+              a.attrs.timeStamp - b.attrs.timeStamp
+          );
+
+        // 기록 개수가 MAX_HISTORY_LENGTH를 초과하면 앞에서 제거
+        if (resultData.length > MAX_HISTORY_LENGTH) {
+          historyStep.current = MAX_HISTORY_LENGTH;
+          return resultData.slice(-MAX_HISTORY_LENGTH);
+        }
+        return resultData;
+      }
+    });
+
+    historyStep.current += 1;
+    localStorage.setItem("konva", json);
+  }, []);
+
+  //MouseDown
   const onStageMouseDown = useCallback(() => {
     if (drawAction === DrawAction.Select || !stageRef.current) return;
 
@@ -179,14 +237,14 @@ function App() {
       }
       case DrawAction.Spline: {
         if (isPaintFirstSplineRef.current) {
-          //첫 번째 클릭
+          //곡선 첫 번째 클릭
           currentShapeIdRef.current = id;
           setSplines((prev) => [
             ...prev,
             { id, color, strokeWidth, timeStamp, points: [x, y] },
           ]);
         } else {
-          // 두 번째 클릭
+          //곡선 두 번째 클릭
           setSplines((prev) => {
             const lastSpline = prev[prev.length - 1];
             const [x1, y1, , , x3, y3] = lastSpline.points;
@@ -259,7 +317,7 @@ function App() {
         };
 
         setPolygons((prev) => {
-          //현재 진행 중인 폴리곤
+          //현재 진행 중인 폴리곤 데이터 OR 초기 데이터
           const lastPolygon =
             prev.length > 0 && !prev[prev.length - 1].closed
               ? {
@@ -297,6 +355,7 @@ function App() {
     }
   }, [drawAction, color, strokeWidth]);
 
+  //MouseMove
   const onStageMouseMove = useCallback(() => {
     if (drawAction === DrawAction.Select || !isPaintRef.current) return;
 
@@ -404,84 +463,33 @@ function App() {
 
           const lastPolygon = prev[prev.length - 1];
 
-          if (lastPolygon.points.length <= 2) {
-            return prev.map((polygon) =>
-              polygon.id === lastPolygon.id
-                ? {
-                    ...polygon,
-                    points: [polygon.points[0], lastPolygon.points[1], x, y],
-                  }
-                : polygon
-            );
-          }
+          return prev.map((polygon) => {
+            if (polygon.id !== lastPolygon.id) {
+              return polygon;
+            }
 
-          return prev.map((polygon) =>
-            polygon.id === lastPolygon.id
-              ? {
-                  ...polygon,
-                  points: [...polygon.points.slice(0, -2), x, y],
-                }
-              : polygon
-          );
+            // 현재 폴리곤인 경우, 조건에 따라 points를 수정
+            const newPoints =
+              lastPolygon.points.length <= 2
+                ? [polygon.points[0], lastPolygon.points[1], x, y] // 첫 번째 시작일 때
+                : [...polygon.points.slice(0, -2), x, y]; // 그 외 경우
+
+            return {
+              ...polygon,
+              points: newPoints,
+            };
+          });
         });
         break;
       }
     }
   }, [drawAction]);
 
+  //MouseUp
   const onStageMouseUp = useCallback(() => {
-    const saveAndLoadData = () => {
-      const json = stageRef.current!.toJSON();
-      const parsedData = JSON.parse(json);
-      const newData: KonvaElement[] = parsedData.children[0].children;
-
-      setHistory((prev) => {
-        //만약 redo할 데이터가 있는 상태인데 그리기를 시도했을 때 redo할 데이터들 제거
-        if (historyStep.current <= prev.length) {
-          const slicePrev = prev.slice(0, historyStep.current - 1);
-          const updatedData = newData.filter(
-            (newItem) =>
-              !slicePrev.some((his) => his.attrs.id === newItem.attrs.id)
-          );
-          const resultData = slicePrev
-            .concat(updatedData)
-            .sort(
-              (a: KonvaElement, b: KonvaElement) =>
-                a.attrs.timeStamp - b.attrs.timeStamp
-            );
-
-          // 기록 개수가 MAX_HISTORY_LENGTH를 초과하면 앞에서 제거
-          if (resultData.length > MAX_HISTORY_LENGTH) {
-            historyStep.current = MAX_HISTORY_LENGTH;
-
-            return resultData.slice(-MAX_HISTORY_LENGTH);
-          }
-          return resultData;
-        } else {
-          const updatedData = newData.filter(
-            (newItem) => !prev.some((his) => his.attrs.id === newItem.attrs.id)
-          );
-
-          const resultData = prev
-            .concat(updatedData)
-            .sort(
-              (a: KonvaElement, b: KonvaElement) =>
-                a.attrs.timeStamp - b.attrs.timeStamp
-            );
-
-          // 기록 개수가 MAX_HISTORY_LENGTH를 초과하면 앞에서 제거
-          if (resultData.length > MAX_HISTORY_LENGTH) {
-            historyStep.current = MAX_HISTORY_LENGTH;
-            return resultData.slice(-MAX_HISTORY_LENGTH);
-          }
-          return resultData;
-        }
-      });
-
-      historyStep.current += 1;
-      localStorage.setItem("konva", json);
-    };
+    //현재 곡선일 경우
     const handleSplineAction = () => {
+      //아직 첫 번째 드로잉일 경우
       if (!isPaintFirstSplineRef.current) {
         isPaintRef.current = false;
         isPaintFirstSplineRef.current = true;
@@ -492,6 +500,7 @@ function App() {
       isPaintFirstSplineRef.current = false;
     };
 
+    //현재 폴리곤 드로잉이 끝나지 않은 경우
     const isPolygonDrawingUnfinished = () =>
       drawAction === DrawAction.Polygon &&
       !polygons[polygons.length - 1]?.closed;
@@ -503,10 +512,12 @@ function App() {
       handleSplineAction();
       return;
     }
+
     isPaintRef.current = false;
     saveAndLoadData();
-  }, [drawAction, polygons]);
+  }, [drawAction, polygons, saveAndLoadData]);
 
+  //새로고침시 LocalStorage에 접근해서 저장된 데이터 가져오는 이펙트
   useEffect(() => {
     const savedData = localStorage.getItem("konva");
     if (savedData) {
@@ -516,6 +527,7 @@ function App() {
       historyStep.current =
         data.length > MAX_HISTORY_LENGTH ? MAX_HISTORY_LENGTH : data.length;
 
+      //Date순으로 정렬
       const sortedShapes = data.sort(
         (a: KonvaElement, b: KonvaElement) =>
           a.attrs.timeStamp - b.attrs.timeStamp
@@ -527,7 +539,8 @@ function App() {
       setHistory(sortedShapes.slice(-MAX_HISTORY_LENGTH) || []);
     }
   }, []);
-
+  console.log(history);
+  console.log(historyStep.current);
   return (
     <Container>
       <div>
